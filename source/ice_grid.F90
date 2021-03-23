@@ -276,6 +276,8 @@
          return
       elseif (trim(grid_type) == 'cpom_grid') then
          call cpomgrid          ! cpom model orca1 type grid
+      elseif (trim(grid_type) == 'roms_grid') then
+         call romsgrid_nc       ! roms model netcdf type grid
       else
          call rectgrid          ! regular rectangular grid
       endif
@@ -1250,6 +1252,151 @@
       write(nu_diag,*) "min/max HTE: ", minval(HTE), maxval(HTE)
 
       end subroutine cpomgrid
+
+!=======================================================================
+!
+! !IROUTINE: romsgrid_nc - read and set ROMS grid and land mask
+!
+! !INTERFACE:
+!
+      subroutine romsgrid_nc
+!
+! !DESCRIPTION:
+!
+! Read Netcdf ROMS domain after going through python filter.
+!
+! !REVISION HISTORY:
+!
+! authors: Kate Hedstrom
+!
+! !USES:
+!
+      use ice_domain_size
+      use ice_constants, only: c1, c0, &
+              field_loc_center, field_loc_NEcorner, &
+              field_type_scalar, field_type_angle
+      use ice_read_write, only: ice_read_nc
+      use ice_gather_scatter, only: scatter_global
+!
+! !INPUT/OUTPUT PARAMETERS:
+!
+!EOP
+!
+!-----------------------------------------------------------------
+      !
+      ! PIPS rotated spherical grid and land mask
+      !      rec no.         field         units
+      !      -------         -----         -----
+      !   land mask
+      !         1             KMT
+      !   grid
+      !         2            ULAT         radians
+      !         3            ULON         radians
+      !         4             HTN           cm
+      !         5             HTE           cm
+      !         6             HUS           cm
+      !         7             HUW           cm
+      !         8            ANGLE        radians
+      !
+      ! NOTE: There is no separate kmt file.  Land mask is part of grid file.
+!-----------------------------------------------------------------
+
+      integer (kind=int_kind) :: &
+         i, j, iblk, fid_grid, &
+         ilo,ihi,jlo,jhi      ! beginning and end of physical domain
+
+      logical (kind=log_kind) :: diag
+
+      type (block) :: &
+         this_block           ! block information for current block
+
+      character (char_len) :: &
+         fieldname            ! field name in netCDF file
+
+      real (kind=dbl_kind), dimension(:,:), allocatable :: &
+         work_g1
+
+      real (kind=dbl_kind), dimension (nx_block,ny_block,max_blocks) :: &
+         work1
+
+      call ice_open_nc(grid_file,fid_grid)
+
+      diag = .true.       ! write diagnostic info
+
+      if (my_task == master_task) &
+           write (nu_diag,*) '** Reading roms grid **'
+
+!-----------------------------------------------------------------
+      ! topography
+!-----------------------------------------------------------------
+
+      fieldname='kmt'
+      call ice_read_nc(fid_grid,1,fieldname,work1,diag, &
+                       field_loc=field_loc_center, &
+                       field_type=field_type_scalar)
+
+      hm(:,:,:) = c0
+      do iblk = 1, nblocks
+         this_block = get_block(blocks_ice(iblk),iblk)
+         ilo = this_block%ilo
+         ihi = this_block%ihi
+         jlo = this_block%jlo
+         jhi = this_block%jhi
+
+         do j = jlo, jhi
+         do i = ilo, ihi
+            hm(i,j,iblk) = work1(i,j,iblk)
+            if (hm(i,j,iblk) >= c1) hm(i,j,iblk) = c1
+         enddo
+         enddo
+      enddo                     ! iblk
+
+!-----------------------------------------------------------------
+      ! lat, lon, angle
+!-----------------------------------------------------------------
+
+      allocate(work_g1(nx_global,ny_global))
+
+      fieldname='ulat'
+      call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! ULAT
+      call gridbox_verts(work_g1,latt_bounds)
+      call scatter_global(ULAT, work_g1, master_task, distrb_info, &
+                          field_loc_NEcorner, field_type_scalar)
+      call ice_HaloExtrapolate(ULAT, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+
+      fieldname='ulon'
+      call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! ULON
+      call gridbox_verts(work_g1,lont_bounds)
+      call scatter_global(ULON, work_g1, master_task, distrb_info, &
+                          field_loc_NEcorner, field_type_scalar)
+      call ice_HaloExtrapolate(ULON, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+
+      fieldname='angle'
+      call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) !  ANGLE
+      call scatter_global(ANGLE, work_g1, master_task, distrb_info, &
+                          field_loc_NEcorner, field_type_angle)
+
+!-----------------------------------------------------------------
+      ! cell dimensions
+      ! calculate derived quantities from global arrays to preserve
+      ! information on boundaries
+!-----------------------------------------------------------------
+
+      fieldname='htn'
+      call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! HTN
+      call primary_grid_lengths_HTN(work_g1)                  ! dxu, dxt
+
+      fieldname='hte'
+      call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! HTE
+      call primary_grid_lengths_HTE(work_g1)                  ! dyu, dyt
+
+      deallocate(work_g1)
+
+      if (my_task == master_task) call ice_close_nc(fid_grid)
+
+      end subroutine romsgrid_nc
 
 !=======================================================================
 
