@@ -74,6 +74,9 @@ if ( $THRD == 'yes') setenv OMP_NUM_THREADS 2 # positive integer
 ### File unit numbers
 setenv NUMIN 11           # minimum file unit number
 setenv NUMAX 99           # maximum file unit number
+# Redefiend when coupled with ROMS (JD: 20150116), std_in,std_out goes to 505,506, respectively.
+export NUMIN=511           # minimum file unit number
+export NUMAX=599           # maximum file unit number
 
 ### Set SRCDIR and EXEDIR to your own paths!
 setenv SRCDIR /usr/projects/climate/eclare/CICE.v5.1/cice  # conejo
