@@ -1,0 +1,54 @@
+# Copied from Macros.Linux.cedar 2018/5/20 which was copied from Macros.Linux.
+# emerald; Macros.Linux.emerald was copied from Macros.Linux.Ubuntu 2017/7/20
+
+#==============================================================================
+# Makefile macros for Ubuntu 10.04 Linux w/ repository OpenMPI and libnetcdf-dev
+# Geophysical Institute, University of Alaska Fairbanks
+#==============================================================================
+
+INCLDIR    := -I$(MCT_INCDIR) -I$(MPEU_INCDIR)
+SLIBS      := -L$(MCT_LIBDIR) -lmct -L$(MPEU_LIBDIR) -lmpeu
+ULIBS      :=
+CPP        := /usr/bin/cpp
+CPPFLAGS   := -P -traditional
+CPPDEFS    := -DLINUX
+CFLAGS     := -c -O2
+ifeq ($(COMMDIR), mpi)
+   FC         := mpif90
+else
+   FC         := gfortran
+endif
+FIXEDFLAGS := -132
+FREEFLAGS  :=
+
+FFLAGS     := -O2 -fconvert=big-endian
+MOD_SUFFIX := mod
+LD         := $(FC)
+LDFLAGS    := $(FFLAGS) -v
+
+    CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) \
+                -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS) \
+                -DNICELYR=$(NICELYR) -DNSNWLYR=$(NSNWLYR) -DNICECAT=$(NICECAT) \
+                -DTRAGE=$(TRAGE) -DTRFY=$(TRFY) -DTRLVL=$(TRLVL) -DTRPND=$(TRPND) \
+                -DTRBRI=$(TRBRI) -DNTRAERO=$(NTRAERO) -DNBGCLYR=$(NBGCLYR) \
+                -DTRBGCS=$(TRBGCS) -DNUMIN=$(NUMIN) -DNUMAX=$(NUMAX) \
+                -DROMSCOUPLED
+
+ifeq ($(DITTO), yes)
+   CPPDEFS :=  $(CPPDEFS) -DREPRODUCIBLE
+endif
+
+
+ifeq ($(IO_TYPE), netcdf)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf
+       NC_CONFIG := nf-config
+   NETCDF_INCDIR := $(shell $(NC_CONFIG) --prefix)/include
+            LIBS := $(shell $(NC_CONFIG) --flibs)
+
+   INCLDIR := $(INCLDIR) -I$(NETCDF_INCDIR) -I/usr/include
+   SLIBS   := $(SLIBS) -L$(LIBS)
+endif
+
+### note this file does not include PIO capability
+### see Macros.Linux.LANL.conejo
+

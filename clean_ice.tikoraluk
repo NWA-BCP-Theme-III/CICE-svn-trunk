@@ -1,0 +1,18 @@
+#! /bin/csh -f
+
+##Change to your own paths!
+setenv SYSTEM_USERDIR /home/renklc/models/CICE5.1
+
+setenv SRCDIR /home/renklc/models/CICE5.1
+
+setenv CBLD   $SRCDIR/bld
+setenv EXEDIR /home/renklc/roms_configs/NWA15_CICE
+setenv OBJDIR $EXEDIR/compile
+
+cd $OBJDIR
+pwd
+
+# Clean compile directory
+make -f $CBLD/Makefile clean  || exit 2
+
+cd $EXEDIR
