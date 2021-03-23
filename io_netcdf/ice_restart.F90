@@ -39,6 +39,9 @@
       use ice_domain, only: nblocks
       use ice_fileunits, only: nu_diag, nu_rst_pointer
 
+#ifdef ROMSCOUPLED
+      use ice_accum_shared, only: bool_accum_read, accum_time
+#endif
       character(len=char_len_long), intent(in), optional :: ice_ic
 
       ! local variables
@@ -80,9 +83,20 @@
          endif
          endif ! use namelist values if use_restart_time = F
 
+#ifdef ROMSCOUPLED
+         ! seb: "hack"... :-\
+         status = 1 ! this is needed to get nf90_get_att to report an error. Very weird.
+         status = nf90_get_att(ncid,nf90_global,'accum_time',accum_time)
+         if (status /= nf90_noerr) then
+              bool_accum_read = .false.
+         endif
+#endif
          write(nu_diag,*) 'Restart read at istep=',istep0,time,time_forc
       endif
-
+#ifdef ROMSCOUPLED
+      call broadcast_scalar(bool_accum_read, master_task)
+      if(bool_accum_read) call broadcast_scalar(accum_time, master_task)
+#endif
       call broadcast_scalar(istep0,master_task)
       call broadcast_scalar(time,master_task)
       call broadcast_scalar(time_forc,master_task)
@@ -119,6 +133,9 @@
                            tr_bgc_chl_sk, tr_bgc_DMSPd_sk, tr_bgc_Am_sk, &
                            skl_bgc
 
+#ifdef ROMSCOUPLED
+      use ice_accum_shared, only: bool_accum_write, accum_time
+#endif
       character(len=char_len_long), intent(in), optional :: filename_spec
 
       ! local variables
@@ -176,6 +193,15 @@
          status = nf90_put_att(ncid,nf90_global,'mday',mday)
          status = nf90_put_att(ncid,nf90_global,'sec',sec)
 
+#ifdef ROMSCOUPLED
+         ! seb: a bit of a hack this but it is also the least amount of
+         ! change I could come up with.
+         if(bool_accum_write) then
+            write(nu_diag,*) 'ROMSCOUPLED init_restart'
+            status = nf90_put_att(ncid,nf90_global,'accum_time',accum_time)
+            write(nu_diag,*) 'ROMSCOUPLED: init_restart status: ', status
+         endif
+#endif
          nx = nx_global
          ny = ny_global
          if (restart_ext) then
@@ -265,6 +291,17 @@
             call define_rest_field(ncid,'dms'   ,dims)
          endif
 
+#ifdef ROMSCOUPLED
+         if (bool_accum_write) then
+            call define_rest_field(ncid,'accum_aice',dims)
+            call define_rest_field(ncid,'accum_fresh',dims)
+            call define_rest_field(ncid,'accum_fsalt',dims)
+            call define_rest_field(ncid,'accum_fhocn',dims)
+            call define_rest_field(ncid,'accum_fswthru',dims)
+            call define_rest_field(ncid,'accum_strocnx',dims)
+            call define_rest_field(ncid,'accum_strocny',dims)
+         end if
+#endif
          deallocate(dims)
 
       !-----------------------------------------------------------------
@@ -365,6 +402,13 @@
 
          deallocate(dims)
          status = nf90_enddef(ncid)
+!jd
+         if (status /= nf90_noerr) then
+            write(nchar,'(i0)') status
+            call abort_ice( &
+            'ice: Error defining restart ncfile '//trim(filename)//' Status '//trim(nchar))
+!jd
+         endif
 
          write(nu_diag,*) 'Writing ',filename(1:lenstr(filename))
       endif ! master_task
@@ -532,7 +576,10 @@
       status = nf90_close(ncid)
 
       if (my_task == master_task) &
-         write(nu_diag,*) 'Restart read/written ',istep1,time,time_forc
+         write(nu_diag,*) 'Restart read/written ',istep1,time,time_forc&
+!jd
+         ,status
+!jd
 
       end subroutine final_restart
 
@@ -542,6 +589,7 @@
 ! author David A Bailey, NCAR
 
       subroutine define_rest_field(ncid, vname, dims)
+      use ice_fileunits, only: nu_diag
 
       character (len=*)      , intent(in)  :: vname
       integer (kind=int_kind), intent(in)  :: dims(:)
@@ -553,6 +601,10 @@
         status        ! status variable from netCDF routine
 
       status = nf90_def_var(ncid,trim(vname),nf90_double,dims,varid)
+      
+!jd
+      if (status /= nf90_noerr ) &
+           write(nu_diag,*) 'Restart read/write, error defining ',trim(vname), status
         
       end subroutine define_rest_field
 

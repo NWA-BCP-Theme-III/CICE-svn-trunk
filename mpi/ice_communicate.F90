@@ -33,6 +33,9 @@
 
    integer (int_kind), public :: &
       MPI_COMM_ICE,             &! MPI communicator for ice comms
+#ifdef ROMSCOUPLED
+      nprocs,                   &
+#endif
       mpiR16,                   &! MPI type for r16_kind
       mpiR8,                    &! MPI type for dbl_kind
       mpiR4,                    &! MPI type for real_kind
@@ -74,7 +77,7 @@
 !  ice communications
 !
 !-----------------------------------------------------------------------
-
+#ifndef ROMSCOUPLED
    if (present(mpicom)) then
      ice_comm = mpicom
    else
@@ -92,7 +95,7 @@
 
    call MPI_BARRIER (ice_comm, ierr)
    call MPI_COMM_DUP(ice_comm, MPI_COMM_ICE, ierr)
-
+#endif
    master_task = 0
    call MPI_COMM_RANK  (MPI_COMM_ICE, my_task, ierr)
 

@@ -567,13 +567,13 @@
          watery(i,j) = vocn(i,j)*cosw + uocn(i,j)*sinw*sign(c1,fm(i,j))
 
          ! combine tilt with wind stress
-#ifndef coupled
+#if  defined  coupled || defined ROMSCOUPLED 
+         strtltx(i,j) = -gravit*umass(i,j)*ss_tltx(i,j)
+         strtlty(i,j) = -gravit*umass(i,j)*ss_tlty(i,j)
+#else
          ! calculate tilt from geostrophic currents if needed
          strtltx(i,j) = -fm(i,j)*vocn(i,j)
          strtlty(i,j) =  fm(i,j)*uocn(i,j)
-#else
-         strtltx(i,j) = -gravit*umass(i,j)*ss_tltx(i,j)
-         strtlty(i,j) = -gravit*umass(i,j)*ss_tlty(i,j)
 #endif
          forcex(i,j) = strairx(i,j) + strtltx(i,j)
          forcey(i,j) = strairy(i,j) + strtlty(i,j)

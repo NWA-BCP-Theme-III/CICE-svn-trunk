@@ -64,15 +64,28 @@
          nu_rst_pointer, &  ! pointer to latest restart file
          nu_history    , &  ! binary history output file
          nu_hdr        , &  ! header file for binary history output
+#ifdef ROMSCOUPLED
+         nu_dump_accum , &  ! dump file for accumulated fluxes
+         nu_restart_accum,& ! restart file for accumulated fluxes
+#endif
          nu_diag            ! diagnostics output file
 
       character (32), public :: &
          nml_filename = 'ice_in' ! namelist input file name
 
       integer (kind=int_kind), parameter, public :: &
+#ifndef ROMSCOUPLED
          ice_stdin  =  5, & ! reserved unit for standard input
          ice_stdout =  6, & ! reserved unit for standard output
          ice_stderr =  6    ! reserved unit for standard error
+#else
+         ice_stdin  =  505, & ! reserved unit for standard input
+         ice_stdout =  506, & ! reserved unit for standard output
+         ice_stderr =  507    ! reserved unit for standard error
+
+      character (11), parameter, public :: &
+         stdout_file = 'cice_stdout'
+#endif
 
       integer (kind=int_kind), parameter :: &
          ice_IOUnitsMinUnit = NUMIN, & ! do not use unit numbers below 
@@ -98,13 +111,28 @@
 
       subroutine init_fileunits
 
+#ifdef ROMSCOUPLED
+         nu_diag = 509 ! ice_stdout  ! default
+
+         ice_IOUnitsInUse = .false.
+         ice_IOUnitsInUse(ice_stdin)  = .true. ! reserve unit 505
+         ice_IOUnitsInUse(ice_stdout) = .true. ! reserve unit 506
+         ice_IOUnitsInUse(ice_stderr) = .true.
+
+         ice_IOUnitsInUse(nu_diag) = .true.
+         open(UNIT=nu_diag,FILE='cice_nu_diag')
+         open(UNIT=ice_stdout,FILE=stdout_file)
+         if (ice_stdout.ne.ice_stderr) then
+            open(UNIT=ice_stderr,FILE='cice_stderr')
+         endif
+#else
          nu_diag = ice_stdout  ! default
 
          ice_IOUnitsInUse = .false.
          ice_IOUnitsInUse(ice_stdin)  = .true. ! reserve unit 5
          ice_IOUnitsInUse(ice_stdout) = .true. ! reserve unit 6
          ice_IOUnitsInUse(ice_stderr) = .true.
-
+#endif
          call get_fileunit(nu_grid)
          call get_fileunit(nu_kmt)
          call get_fileunit(nu_forcing)
@@ -129,7 +157,11 @@
          call get_fileunit(nu_rst_pointer)
          call get_fileunit(nu_history)
          call get_fileunit(nu_hdr)
-
+#ifdef ROMSCOUPLED
+         !seb
+         call get_fileunit(nu_dump_accum)
+         call get_fileunit(nu_restart_accum)
+#endif
       end subroutine init_fileunits
 
 !=======================================================================
@@ -211,7 +243,11 @@
          call release_fileunit(nu_history)
          call release_fileunit(nu_hdr)
          if (nu_diag /= ice_stdout) call release_fileunit(nu_diag)
-
+#ifdef ROMSCOUPLED
+         call release_fileunit(nu_dump_accum)
+         call release_fileunit(nu_restart_accum)
+#endif
+          
       end subroutine release_all_fileunits
 
 !=======================================================================
