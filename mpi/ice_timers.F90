@@ -51,7 +51,6 @@
       timer_readwrite,        &! read/write
       timer_diags,            &! diagnostics/history
       timer_hist,             &! diagnostics/history
-      timer_da,               &! data assimilation
 #if (defined CCSMCOUPLED) || (defined ROMSCOUPLED)
       timer_cplrecv,          &! receive from coupler
       timer_rcvsnd,           &! time between receive to send
@@ -59,8 +58,8 @@
       timer_sndrcv,           &! time between send to receive
 #endif
       timer_bound,            &! boundary updates
-      timer_tmp,              & ! for temporary timings
-      timer_bgc                ! biogeochemistry
+      timer_bgc,              &! biogeochemistry
+      timer_tmp               ! for temporary timings
 
 !-----------------------------------------------------------------------
 !

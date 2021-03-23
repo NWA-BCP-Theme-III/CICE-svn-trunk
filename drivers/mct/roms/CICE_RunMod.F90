@@ -39,13 +39,12 @@
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
       use ice_calendar, only: istep, istep1, time, dt, stop_now, calendar
-      use ice_forcing, only: get_forcing_atmo, get_forcing_ocn, get_forcing_bry
+      use ice_forcing, only: get_forcing_atmo, get_forcing_ocn
       use ice_flux, only: init_flux_atm, init_flux_ocn
       use ice_state, only: tr_aero
       use ice_timers, only: ice_timer_start, ice_timer_stop, &
           timer_couple, timer_step
       use ice_zbgc_shared, only: skl_bgc
-      use ice_domain, only:sea_ice_time_bry
 
 #ifdef ROMSCOUPLED
       use CICE_MCT, only: CICE_MCT_coupling,TimeInterval
@@ -90,7 +89,6 @@
          call ice_timer_start(timer_couple)  ! atm/ocn coupling
          call get_forcing_atmo     ! atmospheric forcing from data
          call get_forcing_ocn(dt)  ! ocean forcing from data
-         if (sea_ice_time_bry) call get_forcing_bry      ! sea-ice boundary data
          ! if (tr_aero) call faero_data       ! aerosols
          if (tr_aero)  call faero_default     ! aerosols
          if (skl_bgc)  call get_forcing_bgc   ! biogeochemistry
@@ -158,7 +156,6 @@
       use ice_algae, only: bgc_diags, write_restart_bgc
       use ice_zbgc, only: init_history_bgc, biogeochemistry
       use ice_zbgc_shared, only: skl_bgc
-      use ice_da, only: da_ice, ice_da_run
 
       integer (kind=int_kind) :: &
          iblk        , & ! block index 
@@ -169,12 +166,6 @@
       !-----------------------------------------------------------------
 
          if (restore_ice) call ice_HaloRestore
-
-      !-----------------------------------------------------------------
-      ! assimilate observations
-      !-----------------------------------------------------------------
-
-         if (da_ice) call ice_da_run
 
       !-----------------------------------------------------------------
       ! initialize diagnostics

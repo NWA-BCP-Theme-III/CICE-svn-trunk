@@ -425,7 +425,7 @@
       ss_tlty(:,:,:)= c0
 #ifdef ROMSCOUPLED
       zeta   (:,:,:)= c0              ! sea surface height from ROMS
-#endif ROMSCOUPLED
+#endif
       uocn  (:,:,:) = c0              ! surface ocean currents (m/s)
       vocn  (:,:,:) = c0
       frzmlt(:,:,:) = c0              ! freezing/melting potential (W/m^2)
