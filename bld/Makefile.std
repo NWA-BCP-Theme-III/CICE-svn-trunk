@@ -65,6 +65,7 @@ OBJS  := $(addsuffix .o, $(sort $(basename $(notdir $(SRCS)))))
 DEPS  := $(addsuffix .d, $(sort $(basename $(notdir $(SRCS)))))
 INCS  := $(patsubst %,-I%, $(VPATH) )
 RM    := rm
+AR    := ar
 
 .SUFFIXES:
 .SUFFIXES: .F90 .F .c .o
@@ -108,6 +109,10 @@ db_flags:
 
 $(EXEC): $(OBJS)
 	$(LD) -o $(EXEC) $(LDFLAGS) $(OBJS) $(ULIBS) $(SLIBS)
+
+libcice: $(OBJS)
+	@ echo "$(AR) -r $(EXEC) $(OBJS)"
+	$(AR) -rcv libcice.a $(OBJS)
 
 .c.o:
 	cc $(CFLAGS) $(CPPDEFS) $(INCS) $(INCLDIR) $<
