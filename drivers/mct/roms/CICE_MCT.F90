@@ -10,7 +10,8 @@ module CICE_MCT
   use ice_domain, only : nblocks, blocks_ice, halo_info, distrb_info
   use ice_domain_size, only : nx_global, ny_global, max_blocks !, block_size_x, block_size_y
   use ice_flux, only: sst, uocn, vocn, zeta, ss_tltx, ss_tlty,&
-       sss,frzmlt
+       sss, frzmlt, Tair, potT, Qa, rhoa, frain, fsnow, fsw, flw, uatm, vatm, wind, &
+       swvdr, swvdf, swidr, swidf
   use ice_boundary, only: ice_HaloUpdate
   use ice_fileunits, only: ice_stdout, ice_stderr ! these might be the same
 
@@ -81,7 +82,7 @@ module CICE_MCT
  ! real (kind=dbl_kind) ::   tcoupling = 0.0
   
   character (len=240) :: &
-       importList = 'SST:SSS:FRZMLT:u:v:SSH', &
+       importList = 'SST:SSS:FRZMLT:u:v:SSH:Tair:Qair:rain:snow:SWrad:LWrad:Uwind:Vwind:Pair', &
        exportList = &
        'AICE:freshAI:fsaltAI:fhocnAI:fswthruAI:strocnx:strocny'
 
@@ -218,6 +219,7 @@ contains
     integer     :: i,j,Asize,iblk,n
 
     real(kind=dbl_kind) :: fmin,fmax
+    real(kind=dbl_kind) :: cff
 
 !        ***********************************
 !             ROMS coupling
@@ -426,8 +428,182 @@ contains
             field_loc_NEcorner, field_type_vector)
        call ice_HaloUpdate (ss_tlty, halo_info, &
             field_loc_NEcorner, field_type_vector)
-       
-      
+!
+! Tair
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'Tair', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the Tair field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,Tair)
+       call ice_HaloUpdate (Tair, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(Tair,'Tair',tmask)
+!
+! potT
+! 
+       do iblk = 1, nblocks
+          potT(:,:,iblk) = Tair(:,:,iblk)
+       enddo
+!
+! Qair
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'Qair', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the Qair field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,Qa)
+       call ice_HaloUpdate (Qa, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(Qa,'Qair',tmask)
+!
+! rain
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'rain', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the rain field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,frain)
+       call ice_HaloUpdate (frain, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(frain,'rain',tmask)
+!
+! snow
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'snow', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the snow field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,fsnow)
+       call ice_HaloUpdate (fsnow, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(fsnow,'snow',tmask)
+!
+! fsw
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'SWrad', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the SWrad field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,fsw)
+       call ice_HaloUpdate (fsw, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(fsw,'SWrad',tmask)
+       swvdr = 0.28_dbl_kind*fsw ! incoming shortwave radiation in visible, direct band [W m-2]
+       swvdf = 0.24_dbl_kind*fsw ! incoming shortwave radiation in visible, diffuse band [W m-2]
+       swidr = 0.31_dbl_kind*fsw ! incoming shortwave radiation in near-IR, direct band [W m-2]
+       swidf = 0.17_dbl_kind*fsw ! incoming shortwave radiation in near-IR, diffuse band [W m-2]
+!
+! flw
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'LWrad', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the LWrad field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,flw)
+       call ice_HaloUpdate (flw, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(flw,'LWrad',tmask)
+!
+! uatm
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'Uwind', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the Uwind field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,uatm)
+       call ice_HaloUpdate (uatm, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(uatm,'Uwind',tmask)
+!
+! vatm
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'Vwind', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the Vwind field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,vatm)
+       call ice_HaloUpdate (vatm, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(vatm,'Vwind',tmask)
+!
+! wind
+! 
+       do iblk = 1, nblocks
+          wind(:,:,iblk) =                                  &
+               sqrt(uatm(:,:,iblk)**2 + vatm(:,:,iblk)**2)
+       enddo
+!
+! rhoa - note that we receive surface air pressure from ROMS and
+!        convert it here to rhoa
+!
+       CALL AttrVect_exportRAttr(ocn2cice_AV, 'Pair', avdata)
+
+#ifdef REPORT_ALL
+       write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the Pair field(max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+#endif
+
+       call avec2field(avdata,rhoa)
+
+       ! if necessary, convert pressure from mb (hPa) to Pa
+       if (maxval(avdata) < 2000.) then
+          cff = 100.
+       else
+          cff = 1.
+       endif
+
+       ! compute air density
+       do iblk = 1, nblocks
+         this_block = get_block(blocks_ice(iblk),iblk)
+         ilo = this_block%ilo
+         ihi = this_block%ihi
+         jlo = this_block%jlo
+         jhi = this_block%jhi
+         do j = jlo, jhi
+           do i = ilo, ihi
+             rhoa(i,j,iblk)=cff * rhoa(i,j,iblk) / (Tair(i,j,iblk) * 287.058_dbl_kind)
+           end do
+         end do
+       end do
+
+       call ice_HaloUpdate (rhoa, halo_info, &
+            field_loc_center, field_type_scalar)
+       if (report_cpl) call o2i_report(rhoa,'rhoa',tmask)
+
        call zero_i2o_fields ! also accum_time is zeroed
        
        deallocate(avdata)
