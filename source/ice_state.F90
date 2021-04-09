@@ -74,6 +74,13 @@
          vicen , & ! volume per unit area of ice          (m)
          vsnon     ! volume per unit area of snow         (m)
 
+      real (kind=dbl_kind), &
+         dimension(nx_block,ny_block,max_blocks), public :: &
+         aice_ext , & ! sea ice concentration from external source
+         hice_ext , & ! sea ice thickness from external source (m)
+         uvel_ext , & ! sea ice u-velocity component from external source (m/s)
+         vvel_ext     ! sea ice v-velocity component from external source (m/s)
+
       real (kind=dbl_kind), public, &
          dimension (nx_block,ny_block,max_ntrcr,ncat,max_blocks) :: &
          trcrn     ! tracers
