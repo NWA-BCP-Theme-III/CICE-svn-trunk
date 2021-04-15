@@ -377,6 +377,11 @@
 
       use ice_constants, only: c0, c1, gravit
 
+#ifdef ROMSCOUPLED
+      use ice_calendar, only: istep
+      use ice_restart_shared, only: restart
+#endif
+
       integer (kind=int_kind), intent(in) :: &
          nx_block, ny_block, & ! block dimensions
          ilo,ihi,jlo,jhi       ! beginning and end of physical domain
@@ -524,6 +529,12 @@
          iceumask_old(i,j) = iceumask(i,j) ! save
          iceumask(i,j) = (umask(i,j)) .and. (aiu  (i,j) > a_min) & 
                                       .and. (umass(i,j) > m_min)
+
+#ifdef ROMSCOUPLED
+         if (istep == 1 .and. .not. (restart)) then
+            iceumask_old(i,j) = iceumask(i,j)
+         endif
+#endif
 
          if (iceumask(i,j)) then
             icellu = icellu + 1

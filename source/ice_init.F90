@@ -22,6 +22,7 @@
       character(len=char_len_long) :: &
          ice_ic      ! method of ice cover initialization
                      ! 'default'  => latitude and sst dependent
+                     ! 'roms'     => values from ROMS
                      ! 'none'     => no ice
                      ! note:  restart = .true. overwrites
 
@@ -399,7 +400,8 @@
             open(nu_diag,file=str)
          endif
       end if
-      if (trim(ice_ic) /= 'default' .and. trim(ice_ic) /= 'none') then
+      if (trim(ice_ic) /= 'default' .and. trim(ice_ic) /= 'none' .and. &
+     &                 trim(ice_ic) /= 'roms') then
          restart = .true.
       end if
 #else
@@ -419,7 +421,8 @@
 
       if (trim(runtype) == 'continue') restart = .true.
       if (trim(runtype) /= 'continue' .and. (restart)) then
-         if (ice_ic == 'none' .or. ice_ic == 'default') then
+         if (ice_ic == 'none' .or. ice_ic == 'default' .or. &
+                         trim(ice_ic) == 'roms') then
             if (my_task == master_task) then
             write(nu_diag,*) &
             'WARNING: runtype, restart, ice_ic are inconsistent:'
@@ -433,7 +436,8 @@
          endif
       endif
       if (trim(runtype) == 'initial' .and. .not.(restart)) then
-         if (ice_ic /= 'none' .and. ice_ic /= 'default') then
+         if (ice_ic /= 'none' .and. ice_ic /= 'default' .and. &
+                    ice_ic /= 'roms') then
             if (my_task == master_task) then
             write(nu_diag,*) &
             'WARNING: runtype, restart, ice_ic are inconsistent:'
@@ -1139,7 +1143,8 @@
           tr_pond_cesm, nt_apnd, tr_pond_lvl, nt_alvl, tr_pond_topo, &
           nt_Tsfc, nt_sice, nt_qice, nt_qsno, nt_iage, nt_FY, nt_vlvl, &
           nt_hpnd, nt_ipnd, tr_aero, nt_aero, aicen, trcrn, vicen, vsnon, &
-          aice0, aice, vice, vsno, trcr, ntrcr, aice_init, bound_state
+          aice0, aice, vice, vsno, trcr, ntrcr, aice_init, bound_state, &
+          uvel, vvel
       use ice_itd, only: aggregate
       use ice_exit, only: abort_ice
       use ice_therm_shared, only: ktherm, heat_capacity
@@ -1260,7 +1265,8 @@
                              Tf   (:,:,    iblk),                      &
                              salinz(:,:,:, iblk), Tmltz(:,:,:,  iblk), &
                              aicen(:,:,  :,iblk), trcrn(:,:,:,:,iblk), &
-                             vicen(:,:,  :,iblk), vsnon(:,:,  :,iblk))
+                             vicen(:,:,  :,iblk), vsnon(:,:,  :,iblk), &
+                             uvel (:,:,    iblk), vvel (:,:,    iblk))
 
       enddo                     ! iblk
       !$OMP END PARALLEL DO
@@ -1323,13 +1329,16 @@
                                 Tf,       &
                                 salinz,   Tmltz, &
                                 aicen,    trcrn, &
-                                vicen,    vsnon)
+                                vicen,    vsnon, &
+                                uvel,     vvel)
 
-      use ice_constants, only: c0, c1, c2, c3, p2, p5, rhoi, rhos, Lfresh, &
+      use ice_constants, only: c0, c1, c2, c3, p2, p4, p5, rhoi, rhos, Lfresh, &
            cp_ice, cp_ocn, Tsmelt, Tffresh, rad_to_deg, puny
       use ice_domain_size, only: nilyr, nslyr, nx_global, ny_global, max_ntrcr, ncat
       use ice_state, only: nt_Tsfc, nt_qice, nt_qsno, nt_sice, &
            nt_fbri, tr_brine, tr_lvl, nt_alvl, nt_vlvl
+      use ice_state, only: aice_ext, hice_ext, uvel_ext, vvel_ext
+      use ice_grid, only: t2ugrid_vector
       use ice_itd, only: hin_max
       use ice_therm_mushy, only: &
            enthalpy_mush, &
@@ -1374,6 +1383,11 @@
          vicen , & ! volume per unit area of ice          (m)
          vsnon     ! volume per unit area of snow         (m)
 
+      real (kind=dbl_kind), dimension (nx_block,ny_block), &
+         intent(out) :: &
+         uvel  , & ! sea ice velocity, x-direction        (m/s)
+         vvel      ! sea ice velocity, y-direction        (m/s)
+
       real (kind=dbl_kind), dimension (nx_block,ny_block,max_ntrcr,ncat), &
          intent(out) :: &
          trcrn     ! ice tracers
@@ -1414,6 +1428,8 @@
             aicen(i,j,n) = c0
             vicen(i,j,n) = c0
             vsnon(i,j,n) = c0
+            uvel(i,j) = c0
+            vvel(i,j) = c0
             trcrn(i,j,nt_Tsfc,n) = Tf(i,j)  ! surface temperature 
             if (max_ntrcr >= 2) then
                do it = 2, max_ntrcr
@@ -1633,6 +1649,157 @@
                   i = indxi(ij)
                   j = indxj(ij)
                   trcrn(i,j,nt_qsno+k-1,n) = -rhos * Lfresh 
+               enddo            ! ij
+
+            endif               ! heat_capacity
+         enddo                  ! ncat
+      else if (trim(ice_ic) == 'roms') then
+
+      !-----------------------------------------------------------------
+      ! Place ice where ocean surface is cold.
+      ! Note: If SST is not read from a file, then the ocean is assumed
+      !       to be at its freezing point everywhere, and ice will
+      !       extend to the prescribed edges.
+      !-----------------------------------------------------------------
+
+      ! initial category areas in cells with ice
+         hbar = c3  ! initial ice thickness with greatest area
+                    ! Note: the resulting average ice thickness
+                    ! tends to be less than hbar due to the
+                    ! nonlinear distribution of ice thicknesses
+         sum = c0
+         do n = 1, ncat
+            if (n < ncat) then
+               hinit(n) = p5*(hin_max(n-1) + hin_max(n)) ! m
+            else                ! n=ncat
+               hinit(n) = (hin_max(n-1) + c1) ! m
+            endif
+         enddo
+
+         ! place ice at high latitudes where ocean sfc is cold
+         icells = 0
+         do j = jlo, jhi
+         do i = ilo, ihi
+            if (tmask(i,j)) then
+               ! place ice in high latitudes where ocean sfc is cold
+               if (aice_ext (i,j,1) > 0) then
+                  icells = icells + 1
+                  indxi(icells) = i
+                  indxj(icells) = j
+                  hice_ext (i,j,1) = hice_ext(i,j,1)/aice_ext(i,j,1)
+               endif            ! cold surface
+            endif               ! tmask
+         enddo                  ! i
+         enddo                  ! j
+
+            ! ice volume, snow volume
+!DIR$ CONCURRENT !Cray
+!cdir nodep      !NEC
+!ocl novrec      !Fujitsu
+         do ij = 1, icells
+            i = indxi(ij)
+            j = indxj(ij)
+
+            hbar = hice_ext(i,j,1)*1.2      ! Factor to bump up hice
+            sum = c0
+            do n = 1, ncat
+               ! parabola, max at h=hbar, zero at h=0, 2*hbar
+               ainit(n) = max(c0, (c2*hbar*hinit(n) - hinit(n)**2))
+               sum = sum + ainit(n)
+            enddo
+            do n = 1, ncat
+               ainit(n) = ainit(n) / (sum + puny/ncat) * aice_ext(i,j,1)
+            enddo
+
+            do n = 1, ncat
+
+               aicen(i,j,n) = ainit(n)
+
+               vicen(i,j,n) = hinit(n) * ainit(n) ! m
+               vsnon(i,j,n) = min(aicen(i,j,n)*hsno_init,p2*vicen(i,j,n))
+               if (tr_brine) trcrn(i,j,nt_fbri,n) = c1
+            enddo               ! ncat
+
+            ! sea ice velocity
+            uvel(i,j) = uvel_ext(i,j,1)
+            vvel(i,j) = vvel_ext(i,j,1)
+
+         enddo               ! ij
+         
+         call t2ugrid_vector(uvel)
+         call t2ugrid_vector(vvel)
+ 
+         ! surface temperature
+         do n = 1, ncat
+            if (calc_Tsfc) then
+
+               do ij = 1, icells
+                  i = indxi(ij)
+                  j = indxj(ij)
+                  trcrn(i,j,nt_Tsfc,n) = min(Tsmelt, Tair(i,j) - Tffresh) !deg C
+               enddo
+
+            endif       ! calc_Tsfc
+
+            ! other tracers
+
+            if (heat_capacity) then
+
+               ! ice enthalpy, salinity
+               do k = 1, nilyr
+                  do ij = 1, icells
+                     i = indxi(ij)
+                     j = indxj(ij)
+
+                     ! assume linear temp profile and compute enthalpy
+                     slope = Tf(i,j) - trcrn(i,j,nt_Tsfc,n)
+                     Ti = trcrn(i,j,nt_Tsfc,n) &
+                        + slope*(real(k,kind=dbl_kind)-p5) &
+                                /real(nilyr,kind=dbl_kind)
+
+                     if (ktherm == 2) then
+                        ! enthalpy
+                        trcrn(i,j,nt_qice+k-1,n) = &
+                             enthalpy_mush(Ti, salinz(i,j,k))
+                     else
+                        trcrn(i,j,nt_qice+k-1,n) = &
+                            -(rhoi * (cp_ice*(Tmltz(i,j,k)-Ti) &
+                            + Lfresh*(c1-Tmltz(i,j,k)/Ti) - cp_ocn*Tmltz(i,j,k)))
+                     endif
+
+                     ! salinity
+                     trcrn(i,j,nt_sice+k-1,n) = salinz(i,j,k)
+                  enddo            ! ij
+               enddo               ! nilyr
+
+               ! snow enthalpy
+               do k = 1, nslyr
+                  do ij = 1, icells
+                     i = indxi(ij)
+                     j = indxj(ij)
+                     Ti = min(c0, trcrn(i,j,nt_Tsfc,n))
+                     trcrn(i,j,nt_qsno+k-1,n) = -rhos*(Lfresh - cp_ice*Ti)
+
+                  enddo            ! ij
+               enddo               ! nslyr
+
+            else  ! one layer with zero heat capacity
+
+               ! ice energy
+               k = 1
+
+               do ij = 1, icells
+                  i = indxi(ij)
+                  j = indxj(ij)
+                  trcrn(i,j,nt_qice+k-1,n) = -rhoi * Lfresh
+                  trcrn(i,j,nt_sice+k-1,n) = salinz(i,j,k)
+               enddo            ! ij
+
+               ! snow energy
+               do ij = 1, icells
+                  i = indxi(ij)
+                  j = indxj(ij)
+                  trcrn(i,j,nt_qsno+k-1,n) = -rhos * Lfresh
                enddo            ! ij
 
             endif               ! heat_capacity

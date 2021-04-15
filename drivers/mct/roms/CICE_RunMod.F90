@@ -48,6 +48,10 @@
 
 #ifdef ROMSCOUPLED
       use CICE_MCT, only: CICE_MCT_coupling,TimeInterval
+      use ice_grid, only: umask
+      use ice_init, only: init_state
+      use ice_restart_shared, only: restart
+      use ice_shortwave, only: init_shortwave
 
       real(kind=dbl_kind),optional :: coupling_interval
 
@@ -70,6 +74,18 @@
 
 #ifdef ROMSCOUPLED
          call CICE_MCT_coupling
+
+         if (istep == 1 .and. .not. (restart)) then
+            print *, '>>> Initialize with data from ROMS'
+            call init_state
+            call init_shortwave    ! initialize radiative transfer using current swdn
+            ! Here we call the coupler again, to send the proper initial
+            ! sea ice state to ROMS
+            call CICE_MCT_coupling
+
+            ! update iceumask???
+            
+         endif
 #endif
 
          call ice_step ! restarts written at the end of this call
