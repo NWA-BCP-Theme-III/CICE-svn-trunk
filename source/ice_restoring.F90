@@ -1029,9 +1029,9 @@
        !$OMP END PARALLEL DO
       endif
 
-!! Added calls to u2tgrid_vector 2018/12/20
-      call u2tgrid_vector(uvel)
-      call u2tgrid_vector(vvel)
+! !! Added calls to u2tgrid_vector 2018/12/20
+!       call u2tgrid_vector(uvel)
+!       call u2tgrid_vector(vvel)
 
 !-----------------------------------------------------------------------
 !
@@ -1066,6 +1066,17 @@
             enddo
             enddo
             enddo
+
+!! Added uvel, vvel 2018/11/23
+            do j = 1, ny_block
+              do i = 1, ilo
+                uvel(i,j,iblk) = uvel(i,j,iblk) &
+                 + (uvel_ext(i,j,iblk)-uvel(i,j,iblk))*ctime
+                vvel(i,j,iblk) = vvel(i,j,iblk) &
+                 + (vvel_ext(i,j,iblk)-vvel(i,j,iblk))*ctime
+              enddo ! i
+            enddo ! j
+
          endif
       endif
 
@@ -1099,6 +1110,17 @@
             enddo
             enddo
             enddo
+
+!! Added uvel, vvel 2018/11/23
+            do j = 1, ny_block
+              do i = ihi, ibc
+                uvel(i,j,iblk) = uvel(i,j,iblk) &
+                 + (uvel_ext(i,j,iblk)-uvel(i,j,iblk))*ctime
+                vvel(i,j,iblk) = vvel(i,j,iblk) &
+                 + (vvel_ext(i,j,iblk)-vvel(i,j,iblk))*ctime
+              enddo ! i
+            enddo ! j
+
          endif
       endif
 
@@ -1120,6 +1142,17 @@
             enddo
             enddo
             enddo
+
+!! Added uvel, vvel 2018/11/23
+            do j = 1, jlo
+              do i = 1, nx_block
+                uvel(i,j,iblk) = uvel(i,j,iblk) &
+                 + (uvel_ext(i,j,iblk)-uvel(i,j,iblk))*ctime
+                vvel(i,j,iblk) = vvel(i,j,iblk) &
+                 + (vvel_ext(i,j,iblk)-vvel(i,j,iblk))*ctime
+              enddo ! i
+            enddo ! j
+
          endif
       endif
 
@@ -1182,9 +1215,9 @@
    enddo ! iblk
    !$OMP END PARALLEL DO
 
-!! Added calls to t2ugrid_vector 2018/12/20
-   call t2ugrid_vector(uvel)
-   call t2ugrid_vector(vvel)
+! !! Added calls to t2ugrid_vector 2018/12/20
+!    call t2ugrid_vector(uvel)
+!    call t2ugrid_vector(vvel)
 
    call ice_timer_stop(timer_bound)
 

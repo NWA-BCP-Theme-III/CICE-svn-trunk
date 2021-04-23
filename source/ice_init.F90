@@ -1726,8 +1726,8 @@
 
          enddo               ! ij
          
-         call t2ugrid_vector(uvel)
-         call t2ugrid_vector(vvel)
+         ! call t2ugrid_vector(uvel)
+         ! call t2ugrid_vector(vvel)
  
          ! surface temperature
          do n = 1, ncat

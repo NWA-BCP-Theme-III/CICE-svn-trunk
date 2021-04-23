@@ -383,8 +383,8 @@ contains
 #endif
        
        call avec2field(avdata,vocn)
-       call ice_HaloUpdate (vocn, halo_info, &
-            field_loc_center, field_type_scalar)
+       ! call ice_HaloUpdate (vocn, halo_info, &
+       !      field_loc_center, field_type_scalar)
        
        call t2ugrid_vector(vocn)
        
@@ -647,9 +647,12 @@ contains
 #endif
 
        call avec2field(avdata,uvel_ext)
+
+       call t2ugrid_vector(uvel_ext)
+
        call ice_HaloUpdate (uvel_ext, halo_info, &
-            field_loc_center, field_type_scalar)
-       if (report_cpl) call o2i_report(uvel_ext,'Uice',tmask)
+            field_loc_NEcorner, field_type_vector)
+       if (report_cpl) call o2i_report(uvel_ext,'Uice',umask)
 !
 ! vvel_ext
 !
@@ -662,9 +665,12 @@ contains
 #endif
 
        call avec2field(avdata,vvel_ext)
+
+       call t2ugrid_vector(vvel_ext)
+
        call ice_HaloUpdate (vvel_ext, halo_info, &
-            field_loc_center, field_type_scalar)
-       if (report_cpl) call o2i_report(vvel_ext,'Vice',tmask)
+            field_loc_NEcorner, field_type_vector)
+       if (report_cpl) call o2i_report(vvel_ext,'Vice',umask)
 
        call zero_i2o_fields ! also accum_time is zeroed
        
