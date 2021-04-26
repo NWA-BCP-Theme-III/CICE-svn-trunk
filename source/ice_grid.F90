@@ -1351,6 +1351,9 @@
          enddo
       enddo                     ! iblk
 
+      call ice_HaloExtrapolate(hm, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+
 !-----------------------------------------------------------------
       ! lat, lon, angle
 !-----------------------------------------------------------------
@@ -1823,7 +1826,9 @@
 
       subroutine to_ugrid(work1,work2)
 
-      use ice_constants, only: c0, p25
+      use ice_blocks, only: block, nblocks_x, nblocks_y
+      use ice_constants, only: c0, c2, p25
+      use ice_domain, only: ew_boundary_type, ns_boundary_type
 
       real (kind=dbl_kind), intent(in) :: &
          work1(nx_block,ny_block,max_blocks)
@@ -1838,7 +1843,8 @@
 
       integer (kind=int_kind) :: &
          i, j, iblk, &
-         ilo,ihi,jlo,jhi      ! beginning and end of physical domain
+         ilo,ihi,jlo,jhi, &   ! beginning and end of physical domain
+         ibc                  ! ghost cell column or row
 
       work2(:,:,:) = c0
 
@@ -1860,6 +1866,40 @@
                              / uarea(i,  j,  iblk)
          enddo
          enddo
+
+         ! The interpolation above leads to an underestimation by a factor 2 in
+         ! the eastern and southern most cells because the values in the ghost 
+         ! cell around the domain are zero. We compensate for that by multiplying
+         ! the values in these cells by factor 2.
+
+         if (this_block%iblock == nblocks_x) then  ! east edge
+            if (trim(ew_boundary_type) /= 'cyclic') then
+               ! locate ghost cell column (avoid padding)
+               ibc = nx_block
+               do i = nx_block, nghost + 1, -1
+                  if (this_block%i_glob(i) == 0) ibc = ibc - 1
+               enddo
+               do j = 1, ny_block
+                  work2(ibc-1,j,iblk) = c2*work2(ibc-1,j,iblk)
+               enddo
+            endif
+         endif
+
+         if (this_block%jblock == nblocks_y) then  ! north edge
+            if (trim(ns_boundary_type) /= 'cyclic' .and. &
+               trim(ns_boundary_type) /= 'tripole' .and. &
+               trim(ns_boundary_type) /= 'tripoleT' ) then
+               ! locate ghost cell column (avoid padding)
+               ibc = ny_block
+               do j = ny_block, nghost + 1, -1
+                  if (this_block%j_glob(j) == 0) ibc = ibc - 1
+               enddo
+               do i = 1, nx_block
+                  work2(i,ibc-1,iblk) = c2*work2(i,ibc-1,iblk)
+               enddo
+            endif
+         endif
+
       enddo
       !$OMP END PARALLEL DO
 
