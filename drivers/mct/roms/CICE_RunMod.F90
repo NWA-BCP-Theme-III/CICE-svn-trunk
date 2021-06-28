@@ -52,6 +52,7 @@
       use ice_init, only: init_state
       use ice_restart_shared, only: restart
       use ice_shortwave, only: init_shortwave
+      use ice_accum_fields, only: accumulate_i2o_fields, update_accum_clock
 
       real(kind=dbl_kind),optional :: coupling_interval
 
@@ -81,6 +82,8 @@
             call init_shortwave    ! initialize radiative transfer using current swdn
             ! Here we call the coupler again, to send the proper initial
             ! sea ice state to ROMS
+            call update_accum_clock(dt)
+            call accumulate_i2o_fields(dt)
             call CICE_MCT_coupling
 
             ! update iceumask???

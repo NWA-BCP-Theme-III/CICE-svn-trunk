@@ -63,7 +63,7 @@ module CICE_MCT
 
   implicit none
   private
-  logical :: initial_call 
+  logical :: initial_call, initial_call1
   real (kind=dbl_kind) ::   TimeInterval = 3600.0
   
   logical :: report_cpl = .true.
@@ -198,6 +198,7 @@ contains
     
     deallocate(start,length)
     initial_call = .true.
+    initial_call1 = .true.
 
     call ice_timer_stop(timer_tmp)
     call ice_timer_print(timer_tmp,.false.)
@@ -230,11 +231,10 @@ contains
 
 !   update of accumulated time since last coupling (accum_time) and accumulation
 !   of flux fields are done from RunMod (calling functions in ice_accum_fields).
-    IF (accum_time >= TimeInterval .or. initial_call) THEN
+    IF (accum_time >= TimeInterval .or. initial_call .or. initial_call1) THEN
        call ice_timer_start(timer_sndrcv)
        IF (my_task == master_task) THEN
           write(ice_stdout,*) '*********************************************'
-          
           write(ice_stdout,*) 'CICE - Ocean: coupling routine called from CICE'
           write(ice_stdout,*) 'time = ', time
           write(ice_stdout,*) 'dt = ', dt
@@ -274,7 +274,7 @@ contains
        call ice_timer_start(timer_cplsend)
        CALL MCT_Send(cice2ocn_AV, CICEtoROMS)
        call ice_timer_stop(timer_cplsend)
-       if (initial_call) then
+       if (initial_call .or. initial_call1) then
           call ice_timer_print(timer_cplsend,.false.)
        endif
 
@@ -678,7 +678,13 @@ contains
        call ice_timer_stop(timer_rcvsnd)
 
     END IF
-    initial_call=.false.
+    if (initial_call1 .and. initial_call1) then
+       initial_call=.true.
+       initial_call1=.false.
+    else
+       initial_call=.false.
+       initial_call1=.false.
+    endif
 
 !        ***********************************
   contains
