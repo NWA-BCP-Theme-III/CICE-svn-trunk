@@ -722,6 +722,7 @@
 !        enddo ! i
 !       enddo ! j
 
+! ============================
       ! Attempt spreading sea ice across thickness categories.
       ! This code is inspired/copied from ice_init.F90
 
@@ -774,6 +775,7 @@
             if (tr_brine) trcrn(i,j,nt_fbri,n) = c1
          enddo               ! ncat
       enddo               ! ij
+! ==================================
 
       !-----------------------------------------------------------------
       ! Define cells where ice is placed (or other values are used)
@@ -822,9 +824,9 @@
             do j = 1, jlo
             do i = 1, nx_block
                if (tmask(i,j)) then
-!               icells = icells + 1
-!               indxi(icells) = i
-!               indxj(icells) = j
+                  icells = icells + 1
+                  indxi(icells) = i
+                  indxj(icells) = j
                endif
             enddo
             enddo
@@ -871,7 +873,7 @@
 ! !               vicen(i,j,n) = hinit(n) * ainit(n) ! m
 ! !! Changed aicen & vicen dimensions 2019/1/9
 !                aicen(i,j,n) = ainit(i,j,n)
-!                vicen(i,j,n) = hinit(n) * ainit(i,j,n) ! m
+!                vicen(i,j,n) = hinit(i,j,n) * ainit(i,j,n) ! m
 !                vsnon(i,j,n) = min(aicen(i,j,n)*hsno_init,p2*vicen(i,j,n))
 ! !! Changed vsnon to zero 2019/1/28
 ! !               vsnon(i,j,n) = c0 
@@ -1218,6 +1220,8 @@
 ! !! Added calls to t2ugrid_vector 2018/12/20
 !    call t2ugrid_vector(uvel)
 !    call t2ugrid_vector(vvel)
+
+   call bound_state (aicen, trcrn, vicen, vsnon)
 
    call ice_timer_stop(timer_bound)
 
