@@ -120,6 +120,9 @@
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,max_blocks), public, save :: &
          rndex_global       ! global index for local subdomain (dbl)
+ 
+      real (kind=dbl_kind), dimension (nx_block,ny_block,max_blocks), public, save :: &
+         bath       ! ocean bathymetry (T-cell)
 
 !=======================================================================
 
@@ -1317,7 +1320,7 @@
          work_g1
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,max_blocks) :: &
-         work1
+         work1, work2
 
       call ice_open_nc(grid_file,fid_grid)
 
@@ -1335,7 +1338,13 @@
                        field_loc=field_loc_center, &
                        field_type=field_type_scalar)
 
+      fieldname='bath'
+      call ice_read_nc(fid_grid,1,fieldname,work2,diag, &
+                       field_loc=field_loc_center, &
+                       field_type=field_type_scalar)
+
       hm(:,:,:) = c0
+      bath(:,:,:) = c0
       do iblk = 1, nblocks
          this_block = get_block(blocks_ice(iblk),iblk)
          ilo = this_block%ilo
@@ -1346,12 +1355,17 @@
          do j = jlo, jhi
          do i = ilo, ihi
             hm(i,j,iblk) = work1(i,j,iblk)
-            if (hm(i,j,iblk) >= c1) hm(i,j,iblk) = c1
+            if (hm(i,j,iblk) >= c1) then
+               hm(i,j,iblk) = c1
+               bath(i,j,iblk) = work2(i,j,iblk)
+            endif
          enddo
          enddo
       enddo                     ! iblk
 
       call ice_HaloExtrapolate(hm, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+      call ice_HaloExtrapolate(bath, distrb_info, &
                                ew_boundary_type, ns_boundary_type)
 
 !-----------------------------------------------------------------

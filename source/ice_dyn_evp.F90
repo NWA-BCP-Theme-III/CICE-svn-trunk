@@ -79,7 +79,7 @@
           stress12_1, stress12_2, stress12_3, stress12_4
       use ice_grid, only: tmask, umask, dxt, dyt, dxhy, dyhx, cxp, cyp, cxm, cym, &
           tarear, uarear, tinyarea, to_ugrid, t2ugrid_vector, u2tgrid_vector, &
-          grid_type
+          grid_type, bath
       use ice_mechred, only: ice_strength
       use ice_state, only: aice, vice, vsno, uvel, vvel, divu, shear, &
           aice_init, aice0, aicen, vicen, strength
@@ -116,6 +116,7 @@
          watery   , & ! for ocean stress calculation, y (m/s)
          forcex   , & ! work array: combined atm stress and ocn tilt, x
          forcey   , & ! work array: combined atm stress and ocn tilt, y
+         Cbu      , & ! landfast basal stress factor !pblain
          aiu      , & ! ice fraction on u-grid
          umass    , & ! total mass of ice and snow (u grid)
          umassdti     ! mass of U-cell/dte (kg/m^2 s)
@@ -249,6 +250,7 @@
                          ss_tltx   (:,:,iblk), ss_tlty   (:,:,iblk), &  
                          icetmask  (:,:,iblk), iceumask  (:,:,iblk), & 
                          fm        (:,:,iblk), dt,                   & 
+                         Cbu       (:,:,iblk),                       &
                          strtltx   (:,:,iblk), strtlty   (:,:,iblk), & 
                          strocnx   (:,:,iblk), strocny   (:,:,iblk), & 
                          strintx   (:,:,iblk), strinty   (:,:,iblk), & 
@@ -338,11 +340,26 @@
 !            endif               ! yield_curve
 
       !-----------------------------------------------------------------
+      ! basal stress calculation (landfast ice)
+      !-----------------------------------------------------------------
+
+            if (l_basalstress) then
+              call calc_basal_stress(nx_block,       ny_block,       &
+                                     icellu  (iblk),                 &
+                                     indxui(:,iblk), indxuj(:,iblk), &
+                                     vice(:,:,iblk), aice(:,:,iblk), &
+                                     bath(:,:,iblk),                 &
+                                     uvel(:,:,iblk), vvel(:,:,iblk), &
+                                     Cbu(:,:,iblk))
+            endif
+
+      !-----------------------------------------------------------------
       ! momentum equation
       !-----------------------------------------------------------------
 
             call stepu (nx_block,            ny_block,           &
-                        icellu       (iblk), Cdn_ocn (:,:,iblk), & 
+                        icellu       (iblk), ksub,               &
+                        Cdn_ocn  (:,:,iblk),                     &
                         indxui     (:,iblk), indxuj    (:,iblk), & 
                         aiu      (:,:,iblk), strtmp  (:,:,:),    & 
                         uocn     (:,:,iblk), vocn    (:,:,iblk), &     
@@ -353,7 +370,9 @@
                         strocnx  (:,:,iblk), strocny (:,:,iblk), & 
                         strintx  (:,:,iblk), strinty (:,:,iblk), & 
                         uvel_init(:,:,iblk), vvel_init(:,:,iblk),&
-                        uvel     (:,:,iblk), vvel    (:,:,iblk))
+                        uvel     (:,:,iblk), vvel    (:,:,iblk), &
+                        Cbu      (:,:,iblk),                     & !  for basal stress
+                        tau_bu   (:,:,iblk), tau_bv  (:,:,iblk))
 
             ! load velocity into array for boundary updates
             fld2(:,:,1,iblk) = uvel(:,:,iblk)
@@ -656,7 +675,9 @@
          c0nw = strength(i,j)/max(Deltanw,tinyarea(i,j))
          c0sw = strength(i,j)/max(Deltasw,tinyarea(i,j))
          c0se = strength(i,j)/max(Deltase,tinyarea(i,j))
-         prs_sig(i,j) = c0ne*Deltane ! northeast
+         prs_sig(i,j) = c0ne*Deltane ! prs_sig is multiplied by (1+ Kt) in
+                                     ! principal_stress for calc of normalized
+                                     ! stress jfl
 
          c1ne = c0ne*arlx1i
          c1nw = c0nw*arlx1i
@@ -673,24 +694,24 @@
       ! (1) northeast, (2) northwest, (3) southwest, (4) southeast
       !-----------------------------------------------------------------
 
-         stressp_1(i,j) = (stressp_1(i,j) + c1ne*(divune - Deltane)) &
-                          * denom1
-         stressp_2(i,j) = (stressp_2(i,j) + c1nw*(divunw - Deltanw)) &
-                          * denom1
-         stressp_3(i,j) = (stressp_3(i,j) + c1sw*(divusw - Deltasw)) &
-                          * denom1
-         stressp_4(i,j) = (stressp_4(i,j) + c1se*(divuse - Deltase)) &
-                          * denom1
+         stressp_1(i,j) = (stressp_1(i,j) + c1ne*(divune*(1d0+Kt) - &
+                          Deltane*(1d0-Kt))) * denom1
+         stressp_2(i,j) = (stressp_2(i,j) + c1nw*(divunw*(1d0+Kt) - &
+                          Deltanw*(1d0-Kt))) * denom1
+         stressp_3(i,j) = (stressp_3(i,j) + c1sw*(divusw*(1d0+Kt) - &
+                          Deltasw*(1d0-Kt))) * denom1
+         stressp_4(i,j) = (stressp_4(i,j) + c1se*(divuse*(1d0+Kt) - &
+                          Deltase*(1d0-Kt))) * denom1
 
-         stressm_1(i,j) = (stressm_1(i,j) + c0ne*tensionne) * denom1
-         stressm_2(i,j) = (stressm_2(i,j) + c0nw*tensionnw) * denom1
-         stressm_3(i,j) = (stressm_3(i,j) + c0sw*tensionsw) * denom1
-         stressm_4(i,j) = (stressm_4(i,j) + c0se*tensionse) * denom1
-        
-         stress12_1(i,j) = (stress12_1(i,j) + c0ne*shearne*p5) * denom1
-         stress12_2(i,j) = (stress12_2(i,j) + c0nw*shearnw*p5) * denom1
-         stress12_3(i,j) = (stress12_3(i,j) + c0sw*shearsw*p5) * denom1
-         stress12_4(i,j) = (stress12_4(i,j) + c0se*shearse*p5) * denom1
+         stressm_1(i,j) = (stressm_1(i,j) + c1ne*tensionne*(1d0+Kt)) * denom2
+         stressm_2(i,j) = (stressm_2(i,j) + c1nw*tensionnw*(1d0+Kt)) * denom2
+         stressm_3(i,j) = (stressm_3(i,j) + c1sw*tensionsw*(1d0+Kt)) * denom2
+         stressm_4(i,j) = (stressm_4(i,j) + c1se*tensionse*(1d0+Kt)) * denom2
+
+         stress12_1(i,j) = (stress12_1(i,j) + c1ne*shearne*p5*(1d0+Kt)) * denom2
+         stress12_2(i,j) = (stress12_2(i,j) + c1nw*shearnw*p5*(1d0+Kt)) * denom2
+         stress12_3(i,j) = (stress12_3(i,j) + c1sw*shearsw*p5*(1d0+Kt)) * denom2
+         stress12_4(i,j) = (stress12_4(i,j) + c1se*shearse*p5*(1d0+Kt)) * denom2
 
       !-----------------------------------------------------------------
       ! Eliminate underflows.

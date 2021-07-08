@@ -82,7 +82,8 @@
       use ice_domain, only: nblocks, blocks_ice, halo_info, maskhalo_dyn
       use ice_dyn_shared, only: fcor_blk, ndte, dtei, a_min, m_min, &
           cosw, sinw, denom1, uvel_init, vvel_init, arlx1i, &
-          evp_prep1, evp_prep2, stepu, evp_finish
+          evp_prep1, evp_prep2, stepu, evp_finish, l_basalstress, &
+          tau_bu, tau_bv, calc_basal_stress
       use ice_flux, only: rdg_conv, rdg_shear, prs_sig, strairxT, strairyT, &
           strairx, strairy, uocn, vocn, ss_tltx, ss_tlty, iceumask, fm, &
           strtltx, strtlty, strocnx, strocny, strintx, strinty, &
@@ -91,7 +92,8 @@
           stressm_1, stressm_2, stressm_3, stressm_4, &
           stress12_1, stress12_2, stress12_3, stress12_4
       use ice_grid, only: tmask, umask, dxt, dyt, dxhy, dyhx, cxp, cyp, cxm, cym, &
-          tarear, uarear, tinyarea, to_ugrid, t2ugrid_vector, u2tgrid_vector
+          tarear, uarear, tinyarea, to_ugrid, t2ugrid_vector, u2tgrid_vector, &
+          bath
       use ice_mechred, only: ice_strength
       use ice_state, only: aice, vice, vsno, uvel, vvel, divu, shear, &
           aice_init, aice0, aicen, vicen, strength
@@ -131,6 +133,7 @@
          watery   , & ! for ocean stress calculation, y (m/s)
          forcex   , & ! work array: combined atm stress and ocn tilt, x
          forcey   , & ! work array: combined atm stress and ocn tilt, y
+         Cbu      , & ! landfast basal stress factor !pblain
          aiu      , & ! ice fraction on u-grid
          umass    , & ! total mass of ice and snow (u grid)
          umassdti     ! mass of U-cell/dte (kg/m^2 s)
@@ -256,6 +259,7 @@
                          ss_tltx   (:,:,iblk), ss_tlty   (:,:,iblk), &  
                          icetmask  (:,:,iblk), iceumask  (:,:,iblk), & 
                          fm        (:,:,iblk), dt,                   & 
+                         Cbu       (:,:,iblk),                       &
                          strtltx   (:,:,iblk), strtlty   (:,:,iblk), & 
                          strocnx   (:,:,iblk), strocny   (:,:,iblk), & 
                          strintx   (:,:,iblk), strinty   (:,:,iblk), & 
@@ -379,11 +383,26 @@
 !      call ice_timer_stop(timer_tmp1) ! dynamics
 
       !-----------------------------------------------------------------
+      ! basal stress calculation (landfast ice)
+      !-----------------------------------------------------------------
+
+            if (l_basalstress) then
+              call calc_basal_stress(nx_block,       ny_block,       &
+                                     icellu  (iblk),                 &
+                                     indxui(:,iblk), indxuj(:,iblk), &
+                                     vice(:,:,iblk), aice(:,:,iblk), &
+                                     bath(:,:,iblk),                 &
+                                     uvel(:,:,iblk), vvel(:,:,iblk), &
+                                     Cbu(:,:,iblk))
+            endif
+
+      !-----------------------------------------------------------------
       ! momentum equation
       !-----------------------------------------------------------------
 
             call stepu (nx_block,            ny_block,           & 
-                        icellu       (iblk), Cdn_ocn (:,:,iblk), & 
+                        icellu       (iblk), ksub,               &
+                        Cdn_ocn  (:,:,iblk),                     &
                         indxui     (:,iblk), indxuj    (:,iblk), & 
                         aiu      (:,:,iblk), strtmp  (:,:,:),    & 
                         uocn     (:,:,iblk), vocn    (:,:,iblk), &     
@@ -394,7 +413,9 @@
                         strocnx  (:,:,iblk), strocny (:,:,iblk), & 
                         strintx  (:,:,iblk), strinty (:,:,iblk), & 
                         uvel_init(:,:,iblk), vvel_init(:,:,iblk),&
-                        uvel     (:,:,iblk), vvel    (:,:,iblk))
+                        uvel     (:,:,iblk), vvel    (:,:,iblk), &
+                        Cbu      (:,:,iblk),                     & !  for basal stress
+                        tau_bu   (:,:,iblk), tau_bv  (:,:,iblk))
 
             ! load velocity into array for boundary updates
             fld2(:,:,1,iblk) = uvel(:,:,iblk)
