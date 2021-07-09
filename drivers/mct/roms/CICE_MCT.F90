@@ -11,7 +11,7 @@ module CICE_MCT
   use ice_domain_size, only : nx_global, ny_global, max_blocks !, block_size_x, block_size_y
   use ice_flux, only: sst, uocn, vocn, zeta, ss_tltx, ss_tlty,&
        sss, frzmlt, Tair, potT, Qa, rhoa, frain, fsnow, fsw, flw, uatm, vatm, wind, &
-       swvdr, swvdf, swidr, swidf
+       swvdr, swvdf, swidr, swidf, hwater
   use ice_state, only: aice_ext, hice_ext, uvel_ext, vvel_ext
 
   use ice_boundary, only: ice_HaloUpdate
@@ -213,7 +213,7 @@ contains
 
   subroutine CICE_MCT_coupling()
     use ice_grid, only: HTN, HTE, dxu, dyu, dxt, dyt, tmask,umask,&
-         t2ugrid_vector
+         t2ugrid_vector, bath
     use ice_calendar, only: dt, time, write_ic ,istep, istep1
 
     real(kind=dbl_kind), pointer :: avdata(:)
@@ -416,6 +416,7 @@ contains
           jhi = this_block%jhi
           do j = jlo, jhi
              do i = ilo, ihi
+                hwater(i,j,iblk) = bath(i,j,iblk) + zeta(i,j,iblk)
                 ss_tltx(i,j,iblk) =                                  &
                      p5*((zeta(i+1,j,iblk) + zeta(i+1,j+1,iblk)) -   &
                      (zeta(i,j,iblk) + zeta(i,j+1,iblk))) /dxu(i,j,iblk)
@@ -426,6 +427,8 @@ contains
           enddo
        enddo
        
+       call ice_HaloUpdate (hwater, halo_info, &
+            field_loc_center, field_type_scalar)
        call ice_HaloUpdate (ss_tltx, halo_info, &
             field_loc_NEcorner, field_type_vector)
        call ice_HaloUpdate (ss_tlty, halo_info, &

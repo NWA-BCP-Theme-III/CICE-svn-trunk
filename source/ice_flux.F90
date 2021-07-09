@@ -44,6 +44,7 @@
          ss_tlty , & ! sea surface slope, y-direction
 #ifdef ROMSCOUPLED
          zeta    , & ! sea surface height from ROMS (m)
+         hwater  , & ! total water depth (m)
 #endif
        ! out to atmosphere
          strairxT, & ! stress on ice by air, x-direction
@@ -425,6 +426,7 @@
       ss_tlty(:,:,:)= c0
 #ifdef ROMSCOUPLED
       zeta   (:,:,:)= c0              ! sea surface height from ROMS
+      hwater (:,:,:)= c0              ! total water depth
 #endif
       uocn  (:,:,:) = c0              ! surface ocean currents (m/s)
       vocn  (:,:,:) = c0

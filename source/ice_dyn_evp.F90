@@ -76,10 +76,11 @@
           strocnxT, strocnyT, strax, stray, &
           stressp_1, stressp_2, stressp_3, stressp_4, &
           stressm_1, stressm_2, stressm_3, stressm_4, &
-          stress12_1, stress12_2, stress12_3, stress12_4
+          stress12_1, stress12_2, stress12_3, stress12_4, &
+          hwater
       use ice_grid, only: tmask, umask, dxt, dyt, dxhy, dyhx, cxp, cyp, cxm, cym, &
           tarear, uarear, tinyarea, to_ugrid, t2ugrid_vector, u2tgrid_vector, &
-          grid_type, bath
+          grid_type!, bath
       use ice_mechred, only: ice_strength
       use ice_state, only: aice, vice, vsno, uvel, vvel, divu, shear, &
           aice_init, aice0, aicen, vicen, strength
@@ -348,7 +349,7 @@
                                      icellu  (iblk),                 &
                                      indxui(:,iblk), indxuj(:,iblk), &
                                      vice(:,:,iblk), aice(:,:,iblk), &
-                                     bath(:,:,iblk),                 &
+                                     hwater(:,:,iblk),               &
                                      uvel(:,:,iblk), vvel(:,:,iblk), &
                                      Cbu(:,:,iblk))
             endif
