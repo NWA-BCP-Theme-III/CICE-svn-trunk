@@ -1882,7 +1882,7 @@
          enddo
 
          ! The interpolation above leads to an underestimation by a factor 2 in
-         ! the eastern and southern most cells because the values in the ghost 
+         ! the eastern and northern most cells because the values in the ghost 
          ! cell around the domain are zero. We compensate for that by multiplying
          ! the values in these cells by factor 2.
 
