@@ -77,16 +77,16 @@
          call CICE_MCT_coupling
 
          if (istep == 1 .and. .not. (restart)) then
-            print *, '>>> Initialize with data from ROMS'
+            ! print *, '>>> Initialize with data from ROMS'
             call init_state
             call init_shortwave    ! initialize radiative transfer using current swdn
             ! Here we call the coupler again, to send the proper initial
             ! sea ice state to ROMS
-            call update_accum_clock(dt)
-            call accumulate_i2o_fields(dt)
-            call CICE_MCT_coupling
+            ! call update_accum_clock(dt)
+            ! call accumulate_i2o_fields(dt)
+            ! call CICE_MCT_coupling
 
-            ! update iceumask???
+            ! ! update iceumask???
             
          endif
 #endif
