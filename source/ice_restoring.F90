@@ -14,7 +14,7 @@
       use ice_itd, only: aggregate
       use ice_state, only: aicen, vicen, vsnon, trcrn, ntrcr, bound_state, &
                            aice_init, aice0, aice, vice, vsno, trcr,       &
-                           trcr_depend, uvel, vvel
+                           trcr_depend, uvel, vvel, strength
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_bound
 
       implicit none
@@ -589,7 +589,7 @@
            cp_ice, cp_ocn, Tsmelt, Tffresh, puny
       use ice_domain_size, only: nilyr, nslyr, ncat
       use ice_state, only: nt_Tsfc, nt_qice, nt_qsno, nt_sice, nt_fbri, tr_brine
-      use ice_itd, only: hin_max
+      use ice_itd, only: hin_max, hi_min
       use ice_therm_mushy, only: enthalpy_mush
       use ice_therm_shared, only: ktherm
 !! Added min_salin 2019/1/28
@@ -697,35 +697,6 @@
       ! initial area and thickness in ice-occupied restoring cells
       !-----------------------------------------------------------------
 
-! !      hbar = c2  ! initial ice thickness
-! !! Changed hbar and added i & j loops, moved hsno_init 2019/1/9
-! !! Changec vicer to hice_ext 2019/2/14
-!       hsno_init = 0.20_dbl_kind ! initial snow thickness (m)
-!       do j = 1, ny_block
-!        do i = 1, nx_block
-!         hbar = hice_ext(i,j)
-! !      hsno_init = 0.20_dbl_kind ! initial snow thickness (m)
-!         do n = 1, ncat
-! !           hinit(n) = c0
-! !           ainit(n) = c0
-! !! Changed hinit & ainit dimensions 2019/1/9
-!            hinit(i,j,n) = c0
-!            ainit(i,j,n) = c0
-!            if (hbar > hin_max(n-1) .and. hbar < hin_max(n)) then
-! !              hinit(n) = hbar
-! !              ainit(n) = 0.95_dbl_kind ! initial ice concentration
-! !! Changed hinit dimensions & ainit value 2019/1/9
-!               hinit(i,j,n) = hbar
-!               ainit(i,j,n) = aice_ext(i,j)
-!            endif
-!         enddo ! n
-!        enddo ! i
-!       enddo ! j
-
-! ============================
-      ! Attempt spreading sea ice across thickness categories.
-      ! This code is inspired/copied from ice_init.F90
-
       hsno_init = 0.20_dbl_kind ! initial snow thickness (m)
 
       do n = 1, ncat
@@ -775,7 +746,6 @@
             if (tr_brine) trcrn(i,j,nt_fbri,n) = c1
          enddo               ! ncat
       enddo               ! ij
-! ==================================
 
       !-----------------------------------------------------------------
       ! Define cells where ice is placed (or other values are used)
@@ -811,7 +781,6 @@
             do j = 1, ny_block
             do i = ihi, ibc
                if (tmask(i,j)) then
-! Commented out next 3 lines 2018/11/2
                  icells = icells + 1
                  indxi(icells) = i
                  indxj(icells) = j
@@ -847,7 +816,6 @@
             do j = jhi, ibc
             do i = 1, nx_block
                if (tmask(i,j)) then
-! Uncommented next 3 lines 2018/11/2
                  icells = icells + 1
                  indxi(icells) = i
                  indxj(icells) = j
@@ -861,23 +829,10 @@
       !-----------------------------------------------------------------
          do n = 1, ncat
 
-            ! ice volume, snow volume
 !DIR$ CONCURRENT !Cray
 !cdir nodep      !NEC
 !ocl novrec      !Fujitsu
-!             do ij = 1, icells
-!                i = indxi(ij)
-!                j = indxj(ij)
 
-! !               aicen(i,j,n) = ainit(n)
-! !               vicen(i,j,n) = hinit(n) * ainit(n) ! m
-! !! Changed aicen & vicen dimensions 2019/1/9
-!                aicen(i,j,n) = ainit(i,j,n)
-!                vicen(i,j,n) = hinit(i,j,n) * ainit(i,j,n) ! m
-!                vsnon(i,j,n) = min(aicen(i,j,n)*hsno_init,p2*vicen(i,j,n))
-! !! Changed vsnon to zero 2019/1/28
-! !               vsnon(i,j,n) = c0 
-!             enddo               ! ij
 
                ! surface temperature
                do ij = 1, icells
@@ -897,15 +852,11 @@
                      Ti = trcrn(i,j,nt_Tsfc,n) &
                         + slope*(real(k,kind=dbl_kind)-p5) &
                                 /real(nilyr,kind=dbl_kind)
-!! Changed Ti to T at surface 2019/1/29
-!                     Ti = trcrn(i,j,nt_Tsfc,n) 
 
                      if (ktherm == 2) then
                         ! enthalpy
                         trcrn(i,j,nt_qice+k-1,n) = &
                              enthalpy_mush(Ti, salinz(i,j,k))
-!! Replaced salinz with salinz1 although this should be bypassed 2019/1/28
-!                             enthalpy_mush(Ti, salinz1)
                      else
                         trcrn(i,j,nt_qice+k-1,n) = &
                             -(rhoi * (cp_ice*(Tmltz(i,j,k)-Ti) &
@@ -914,8 +865,6 @@
 
                      ! salinity
                      trcrn(i,j,nt_sice+k-1,n) = salinz(i,j,k)
-!! Replaced salinz with salinz1 2019/1/28
-!                     trcrn(i,j,nt_sice+k-1,n) = salinz1
                   enddo            ! ij
                enddo               ! nilyr
 
@@ -946,15 +895,25 @@
 
       use ice_blocks, only: block, get_block, nblocks_x, nblocks_y
       use ice_calendar, only: dt
-      use ice_constants, only: secday
+      use ice_constants, only: c0, secday
       use ice_domain, only: ew_boundary_type, ns_boundary_type, &
           nblocks, blocks_ice
 !! Added tmask, t2ugrid_vector, u2tgrid_vector 2018/12/20
       use ice_grid, only: tmask, t2ugrid_vector, u2tgrid_vector
 !! Added ice_flux and ice_state 2019/1/11
 !! Changed vicer to hice_ext 2019/2/14
-      use ice_flux, only: sst, Tf, Tair, salinz, Tmltz
-      use ice_state, only: aice_ext, hice_ext, uvel_ext, vvel_ext
+      use ice_flux, only: sst, Tf, Tair, salinz, Tmltz, &
+                          uocn, vocn!, iceumask, &
+                        !   fpond, fresh, fhocn, faero_ocn, fsalt
+      use ice_state, only: aice_ext, hice_ext, uvel_ext, vvel_ext!, &
+      !     trcr_depend, aice, tr_aero, tr_pond_topo, nbtrcr
+
+      ! use ice_itd, only: cleanup_itd
+      ! use ice_communicate, only: my_task, master_task
+      ! use ice_fileunits, only: nu_diag
+      ! use ice_zbgc_shared, only: flux_bio, first_ice
+      ! use ice_therm_shared, only: heat_capacity
+      ! use ice_exit, only: abort_ice
 
 !-----------------------------------------------------------------------
 !
@@ -995,7 +954,6 @@
       endif
       ctime = dt/trest
 
-!! Added call to set_restore_var_file 2019/1/9
       if (trim(restore_ic) == 'file') then
        ! restore to values from external file 
        !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block, &
@@ -1019,21 +977,15 @@
                                Tf   (:,:,    iblk),                      &
                                salinz(:,:,:, iblk), Tmltz(:,:,:,  iblk), &
                                tmask(:,:,    iblk),                      &
-!! Added aice_ext & vicer 2019/1/9
-!! Changec vicer to hice_ext 2019/2/12
-                               aice_ext(:,:,    iblk),                      &
-                               hice_ext(:,:,    iblk),                      &
-                               aicen_rest(:,:,  :,iblk), &
-                               trcrn_rest(:,:,:,:,iblk), ntrcr,         &
-                               vicen_rest(:,:,  :,iblk), &
+                               aice_ext(:,:,    iblk),                   &
+                               hice_ext(:,:,    iblk),                   &
+                               aicen_rest(:,:,  :,iblk),                 &
+                               trcrn_rest(:,:,:,:,iblk), ntrcr,          &
+                               vicen_rest(:,:,  :,iblk),                 &
                                vsnon_rest(:,:,  :,iblk))
        enddo ! iblk
        !$OMP END PARALLEL DO
       endif
-
-! !! Added calls to u2tgrid_vector 2018/12/20
-!       call u2tgrid_vector(uvel)
-!       call u2tgrid_vector(vvel)
 
 !-----------------------------------------------------------------------
 !
@@ -1055,27 +1007,28 @@
             do n = 1, ncat
             do j = 1, ny_block
             do i = 1, ilo
-               aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
-                  + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
-                  + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
-               vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
-                  + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
+               if (uvel(i,j,iblk) > c0 .or. &  ! ice velocity is inward
+              &    uocn(i,j,iblk) > c0) then   ! ocean current is inward
+                  aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
+                     + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
+                  vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
+                     + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
+                  vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
+                     + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
+                  do nt = 1, ntrcr
+                     trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
+                        + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
+                  enddo
+               endif
             enddo
             enddo
             enddo
 
-!! Added uvel, vvel 2018/11/23
             do j = 1, ny_block
               do i = 1, ilo
-                uvel(i,j,iblk) = uvel(i,j,iblk) &
-                 + (uvel_ext(i,j,iblk)-uvel(i,j,iblk))*ctime
-                vvel(i,j,iblk) = vvel(i,j,iblk) &
-                 + (vvel_ext(i,j,iblk)-vvel(i,j,iblk))*ctime
+                uvel(i,j,iblk) = uvel(ilo+1,j,iblk)
+                vvel(i,j,iblk) = c0 ! make ice drift strictly normal to boundary
+                strength(i,j,iblk) = strength(ilo+1,j,iblk)
               enddo ! i
             enddo ! j
 
@@ -1099,27 +1052,28 @@
             do n = 1, ncat
             do j = 1, ny_block
             do i = ihi, ibc
-               aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
-                  + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
-                  + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
-               vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
-                  + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
+               if (uvel(i,j,iblk) < c0 .or. &  ! ice velocity is inward
+              &    uocn(i,j,iblk) < c0) then   ! ocean current is inward
+                  aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
+                     + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
+                  vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
+                     + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
+                  vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
+                     + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
+                  do nt = 1, ntrcr
+                     trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
+                        + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
+                  enddo
+               endif
             enddo
             enddo
             enddo
 
-!! Added uvel, vvel 2018/11/23
             do j = 1, ny_block
               do i = ihi, ibc
-                uvel(i,j,iblk) = uvel(i,j,iblk) &
-                 + (uvel_ext(i,j,iblk)-uvel(i,j,iblk))*ctime
-                vvel(i,j,iblk) = vvel(i,j,iblk) &
-                 + (vvel_ext(i,j,iblk)-vvel(i,j,iblk))*ctime
+               uvel(i,j,iblk) = uvel(ihi-1,j,iblk)
+               vvel(i,j,iblk) = c0
+               strength(i,j,iblk) = strength(ihi-1,j,iblk)
               enddo ! i
             enddo ! j
 
@@ -1131,27 +1085,28 @@
             do n = 1, ncat
             do j = 1, jlo
             do i = 1, nx_block
-               aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
-                  + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
-                  + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
-               vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
-                  + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
+               if (vvel(i,j,iblk) > c0 .or. &  ! ice velocity is inward
+              &    vocn(i,j,iblk) > c0) then   ! ocean current is inward
+                  aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
+                     + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
+                  vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
+                     + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
+                  vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
+                     + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
+                  do nt = 1, ntrcr
+                     trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
+                        + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
+                  enddo
+               endif
             enddo
             enddo
             enddo
 
-!! Added uvel, vvel 2018/11/23
             do j = 1, jlo
               do i = 1, nx_block
-                uvel(i,j,iblk) = uvel(i,j,iblk) &
-                 + (uvel_ext(i,j,iblk)-uvel(i,j,iblk))*ctime
-                vvel(i,j,iblk) = vvel(i,j,iblk) &
-                 + (vvel_ext(i,j,iblk)-vvel(i,j,iblk))*ctime
+               uvel(i,j,iblk) = c0
+               vvel(i,j,iblk) = vvel(i,jlo+1,iblk)
+               strength(i,j,iblk) = strength(i,jlo+1,iblk)
               enddo ! i
             enddo ! j
 
@@ -1177,34 +1132,34 @@
             do n = 1, ncat
             do j = jhi, ibc
             do i = 1, nx_block
-               aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
-                  + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
-                  + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
-               vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
-                  + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
+               if (vvel(i,j,iblk) < c0 .or. &  ! ice velocity is inward
+              &    vocn(i,j,iblk) < c0) then   ! ocean current is inward
+                  aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
+                     + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
+                  vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
+                     + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
+                  vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
+                     + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
+                  do nt = 1, ntrcr
+                     trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
+                        + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
+                  enddo
+               endif
             enddo
             enddo
             enddo
 
-!! Added uvel, vvel 2018/11/23
             do j = jhi, ibc
               do i = 1, nx_block
-                uvel(i,j,iblk) = uvel(i,j,iblk) &
-                 + (uvel_ext(i,j,iblk)-uvel(i,j,iblk))*ctime
-                vvel(i,j,iblk) = vvel(i,j,iblk) &
-                 + (vvel_ext(i,j,iblk)-vvel(i,j,iblk))*ctime
+               uvel(i,j,iblk) = c0
+               vvel(i,j,iblk) = vvel(i,jhi-1,iblk)
+               strength(i,j,iblk) = strength(i,jhi-1,iblk)
               enddo ! i
             enddo ! j
 
          endif
       endif
 
-!! Added call to s.r. aggregate 2018/12/18
       call aggregate (nx_block,          ny_block,             &
                       aicen(:,:,:,iblk),                       &
                       trcrn(:,:,1:ntrcr,:,iblk),               &
@@ -1216,10 +1171,6 @@
                       ntrcr, trcr_depend(1:ntrcr)) 
    enddo ! iblk
    !$OMP END PARALLEL DO
-
-! !! Added calls to t2ugrid_vector 2018/12/20
-!    call t2ugrid_vector(uvel)
-!    call t2ugrid_vector(vvel)
 
    call bound_state (aicen, trcrn, vicen, vsnon)
 
