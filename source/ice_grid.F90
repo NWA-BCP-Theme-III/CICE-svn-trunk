@@ -1277,6 +1277,7 @@
       use ice_domain_size
       use ice_constants, only: c1, c0, &
               field_loc_center, field_loc_NEcorner, &
+              field_loc_Nface,  field_loc_Eface, &
               field_type_scalar, field_type_angle
       use ice_read_write, only: ice_read_nc
       use ice_gather_scatter, only: scatter_global
@@ -1394,7 +1395,8 @@
       call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) !  ANGLE
       call scatter_global(ANGLE, work_g1, master_task, distrb_info, &
                           field_loc_NEcorner, field_type_angle)
-
+      call ice_HaloExtrapolate(ANGLE, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
 !-----------------------------------------------------------------
       ! cell dimensions
       ! calculate derived quantities from global arrays to preserve
@@ -1403,11 +1405,29 @@
 
       fieldname='htn'
       call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! HTN
+      call scatter_global(HTN, work_g1, master_task, distrb_info, &
+                          field_loc_Nface, field_type_scalar)
+      call ice_HaloExtrapolate(HTN, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+
       call primary_grid_lengths_HTN(work_g1)                  ! dxu, dxt
+      call ice_HaloExtrapolate(dxt, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+      call ice_HaloExtrapolate(dxu, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
 
       fieldname='hte'
       call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! HTE
+      call scatter_global(HTE, work_g1, master_task, distrb_info, &
+                          field_loc_Eface, field_type_scalar)
+      call ice_HaloExtrapolate(HTE, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+
       call primary_grid_lengths_HTE(work_g1)                  ! dyu, dyt
+      call ice_HaloExtrapolate(dyt, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+      call ice_HaloExtrapolate(dyu, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
 
       deallocate(work_g1)
 
