@@ -899,7 +899,7 @@
       use ice_domain, only: ew_boundary_type, ns_boundary_type, &
           nblocks, blocks_ice
 !! Added tmask, t2ugrid_vector, u2tgrid_vector 2018/12/20
-      use ice_grid, only: tmask, t2ugrid_vector, u2tgrid_vector
+      use ice_grid, only: tmask, umask, t2ugrid_vector, u2tgrid_vector
 !! Added ice_flux and ice_state 2019/1/11
 !! Changed vicer to hice_ext 2019/2/14
       use ice_flux, only: sst, Tf, Tair, salinz, Tmltz, &
@@ -1007,8 +1007,9 @@
             do n = 1, ncat
             do j = 1, ny_block
             do i = 1, ilo
-               if (uvel(i,j,iblk) > c0 .or. &  ! ice velocity is inward
-              &    uocn(i,j,iblk) > c0) then   ! ocean current is inward
+              if (tmask(i,j,iblk)) then
+                if (uvel(i,j,iblk) > c0 .or. &  ! ice velocity is inward
+                    uocn(i,j,iblk) > c0) then   ! ocean current is inward
                   aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
                      + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
                   vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
@@ -1019,16 +1020,19 @@
                      trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
                         + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
                   enddo
-               endif
+                endif
+              endif
             enddo
             enddo
             enddo
 
             do j = 1, ny_block
               do i = 1, ilo
-                uvel(i,j,iblk) = uvel(ilo+1,j,iblk)
-                vvel(i,j,iblk) = c0 ! make ice drift strictly normal to boundary
-                strength(i,j,iblk) = strength(ilo+1,j,iblk)
+                if (umask(i,j,iblk)) then
+                  uvel(i,j,iblk) = uvel(ilo+1,j,iblk)
+                  vvel(i,j,iblk) = c0 ! make ice drift strictly normal to boundary
+                  strength(i,j,iblk) = strength(ilo+1,j,iblk)
+                endif
               enddo ! i
             enddo ! j
 
@@ -1052,8 +1056,9 @@
             do n = 1, ncat
             do j = 1, ny_block
             do i = ihi, ibc
-               if (uvel(i,j,iblk) < c0 .or. &  ! ice velocity is inward
-              &    uocn(i,j,iblk) < c0) then   ! ocean current is inward
+              if (tmask(i,j,iblk)) then
+                if (uvel(i,j,iblk) < c0 .or. &  ! ice velocity is inward
+                    uocn(i,j,iblk) < c0) then   ! ocean current is inward
                   aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
                      + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
                   vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
@@ -1064,16 +1069,19 @@
                      trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
                         + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
                   enddo
-               endif
+                endif
+              endif
             enddo
             enddo
             enddo
 
             do j = 1, ny_block
               do i = ihi, ibc
-               uvel(i,j,iblk) = uvel(ihi-1,j,iblk)
-               vvel(i,j,iblk) = c0
-               strength(i,j,iblk) = strength(ihi-1,j,iblk)
+                if (umask(i,j,iblk)) then
+                  uvel(i,j,iblk) = uvel(ihi-1,j,iblk)
+                  vvel(i,j,iblk) = c0
+                  strength(i,j,iblk) = strength(ihi-1,j,iblk)
+                endif
               enddo ! i
             enddo ! j
 
@@ -1085,8 +1093,9 @@
             do n = 1, ncat
             do j = 1, jlo
             do i = 1, nx_block
-               if (vvel(i,j,iblk) > c0 .or. &  ! ice velocity is inward
-              &    vocn(i,j,iblk) > c0) then   ! ocean current is inward
+              if (tmask(i,j,iblk)) then
+                if (vvel(i,j,iblk) > c0 .or. &  ! ice velocity is inward
+                    vocn(i,j,iblk) > c0) then   ! ocean current is inward
                   aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
                      + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
                   vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
@@ -1097,16 +1106,19 @@
                      trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
                         + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
                   enddo
-               endif
+                endif
+              endif
             enddo
             enddo
             enddo
 
             do j = 1, jlo
               do i = 1, nx_block
-               uvel(i,j,iblk) = c0
-               vvel(i,j,iblk) = vvel(i,jlo+1,iblk)
-               strength(i,j,iblk) = strength(i,jlo+1,iblk)
+                if (umask(i,j,iblk)) then
+                  uvel(i,j,iblk) = c0
+                  vvel(i,j,iblk) = vvel(i,jlo+1,iblk)
+                  strength(i,j,iblk) = strength(i,jlo+1,iblk)
+                endif
               enddo ! i
             enddo ! j
 
@@ -1132,8 +1144,9 @@
             do n = 1, ncat
             do j = jhi, ibc
             do i = 1, nx_block
-               if (vvel(i,j,iblk) < c0 .or. &  ! ice velocity is inward
-              &    vocn(i,j,iblk) < c0) then   ! ocean current is inward
+              if (tmask(i,j,iblk)) then
+                if (vvel(i,j,iblk) < c0 .or. &  ! ice velocity is inward
+                    vocn(i,j,iblk) < c0) then   ! ocean current is inward
                   aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
                      + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
                   vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
@@ -1144,16 +1157,19 @@
                      trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
                         + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
                   enddo
-               endif
+                endif
+              endif
             enddo
             enddo
             enddo
 
             do j = jhi, ibc
               do i = 1, nx_block
-               uvel(i,j,iblk) = c0
-               vvel(i,j,iblk) = vvel(i,jhi-1,iblk)
-               strength(i,j,iblk) = strength(i,jhi-1,iblk)
+                if (umask(i,j,iblk)) then
+                  uvel(i,j,iblk) = c0
+                  vvel(i,j,iblk) = vvel(i,jhi-1,iblk)
+                  strength(i,j,iblk) = strength(i,jhi-1,iblk)
+                endif
               enddo ! i
             enddo ! j
 
