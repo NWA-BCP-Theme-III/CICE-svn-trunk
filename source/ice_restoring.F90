@@ -63,7 +63,7 @@
       use ice_flux, only: sst, Tf, Tair, salinz, Tmltz
       use ice_itd, only: aggregate
       use ice_restart_shared, only: restart_ext
-      use ice_state, only: aice_ext, hice_ext, uvel_ext, vvel_ext
+      use ice_state, only: aice_ext, hice_ext
 
    integer (int_kind) :: &
      i,j,iblk,nt,n,      &! dummy loop indices
@@ -903,17 +903,8 @@
 !! Added ice_flux and ice_state 2019/1/11
 !! Changed vicer to hice_ext 2019/2/14
       use ice_flux, only: sst, Tf, Tair, salinz, Tmltz, &
-                          uocn, vocn!, iceumask, &
-                        !   fpond, fresh, fhocn, faero_ocn, fsalt
-      use ice_state, only: aice_ext, hice_ext, uvel_ext, vvel_ext!, &
-      !     trcr_depend, aice, tr_aero, tr_pond_topo, nbtrcr
-
-      ! use ice_itd, only: cleanup_itd
-      ! use ice_communicate, only: my_task, master_task
-      ! use ice_fileunits, only: nu_diag
-      ! use ice_zbgc_shared, only: flux_bio, first_ice
-      ! use ice_therm_shared, only: heat_capacity
-      ! use ice_exit, only: abort_ice
+                          uocn, vocn
+      use ice_state, only: aice_ext, hice_ext
 
 !-----------------------------------------------------------------------
 !

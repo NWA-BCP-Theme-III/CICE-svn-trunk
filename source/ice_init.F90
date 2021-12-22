@@ -1370,7 +1370,7 @@
       use ice_domain_size, only: nilyr, nslyr, nx_global, ny_global, max_ntrcr, ncat
       use ice_state, only: nt_Tsfc, nt_qice, nt_qsno, nt_sice, &
            nt_fbri, tr_brine, tr_lvl, nt_alvl, nt_vlvl
-      use ice_state, only: aice_ext, hice_ext, uvel_ext, vvel_ext
+      use ice_state, only: aice_ext, hice_ext
       use ice_grid, only: t2ugrid_vector
       use ice_itd, only: hin_max
       use ice_therm_mushy, only: &
@@ -1753,14 +1753,7 @@
                if (tr_brine) trcrn(i,j,nt_fbri,n) = c1
             enddo               ! ncat
 
-            ! sea ice velocity
-            uvel(i,j) = uvel_ext(i,j,1)
-            vvel(i,j) = vvel_ext(i,j,1)
-
          enddo               ! ij
-         
-         ! call t2ugrid_vector(uvel)
-         ! call t2ugrid_vector(vvel)
  
          ! surface temperature
          do n = 1, ncat

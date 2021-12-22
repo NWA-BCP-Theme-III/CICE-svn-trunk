@@ -12,7 +12,7 @@ module CICE_MCT
   use ice_flux, only: sst, uocn, vocn, zeta, ss_tltx, ss_tlty,&
        sss, frzmlt, Tair, potT, Qa, rhoa, frain, fsnow, fsw, flw, uatm, vatm, wind, &
        swvdr, swvdf, swidr, swidf, hwater
-  use ice_state, only: aice_ext, hice_ext, uvel_ext, vvel_ext
+  use ice_state, only: aice_ext, hice_ext
 
   use ice_boundary, only: ice_HaloUpdate
   use ice_fileunits, only: ice_stdout, ice_stderr ! these might be the same
@@ -84,7 +84,7 @@ module CICE_MCT
  ! real (kind=dbl_kind) ::   tcoupling = 0.0
   
   character (len=240) :: &
-       importList = 'SST:SSS:FRZMLT:u:v:SSH:Tair:Qair:rain:snow:SWrad:LWrad:Uwind:Vwind:Pair:Aice:Hice:Uice:Vice', &
+       importList = 'SST:SSS:FRZMLT:u:v:SSH:Tair:Qair:rain:snow:SWrad:LWrad:Uwind:Vwind:Pair:Aice:Hice', &
        exportList = &
        'AICE:freshAI:fsaltAI:fhocnAI:fswthruAI:strocnx:strocny'
 
@@ -637,42 +637,6 @@ contains
        call ice_HaloUpdate (hice_ext, halo_info, &
             field_loc_center, field_type_scalar)
        if (report_cpl) call o2i_report(hice_ext,'Hice',tmask)
-!
-! uvel_ext
-!
-       CALL AttrVect_exportRAttr(ocn2cice_AV, 'Uice', avdata)
-
-#ifdef REPORT_ALL
-       write(ice_stdout,*) 'CICE rank ', my_task, &
-            ' setting the Uice field(max/min): ', &
-            maxval(avdata), ' ', minval(avdata)
-#endif
-
-       call avec2field(avdata,uvel_ext)
-
-       call t2ugrid_vector(uvel_ext)
-
-       call ice_HaloUpdate (uvel_ext, halo_info, &
-            field_loc_NEcorner, field_type_vector)
-       if (report_cpl) call o2i_report(uvel_ext,'Uice',umask)
-!
-! vvel_ext
-!
-       CALL AttrVect_exportRAttr(ocn2cice_AV, 'Vice', avdata)
-
-#ifdef REPORT_ALL
-       write(ice_stdout,*) 'CICE rank ', my_task, &
-            ' setting the Vice field(max/min): ', &
-            maxval(avdata), ' ', minval(avdata)
-#endif
-
-       call avec2field(avdata,vvel_ext)
-
-       call t2ugrid_vector(vvel_ext)
-
-       call ice_HaloUpdate (vvel_ext, halo_info, &
-            field_loc_NEcorner, field_type_vector)
-       if (report_cpl) call o2i_report(vvel_ext,'Vice',umask)
 
        call zero_i2o_fields ! also accum_time is zeroed
        
