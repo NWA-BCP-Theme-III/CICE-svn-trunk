@@ -726,7 +726,7 @@
          i = indxi(ij)
          j = indxj(ij)
 
-         hbar = hice_ext(i,j)*1.2      ! Factor to bump up hice
+         hbar = hice_ext(i,j)
          sum = c0
          do n = 1, ncat
             ! parabola, max at h=hbar, zero at h=0, 2*hbar
