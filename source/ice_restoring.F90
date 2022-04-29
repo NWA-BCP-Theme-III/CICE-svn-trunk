@@ -712,7 +712,7 @@
          do i = ilo, ihi
             if (tmask(i,j)) then
                ! place ice in high latitudes where ocean sfc is cold
-               if (aice_ext(i,j) > 0) then
+               if (aice_ext(i,j) > puny) then
                   icells = icells + 1
                   indxi(icells) = i
                   indxj(icells) = j
